@@ -11,9 +11,14 @@
 
 #define kRefreshControlHeight 300
 #define kStartLoadingThreshold 80
+#define kLodingHeight 5/2.0f
+
 #define kCellWidth 71/2.0f
 #define kCellNum 9
-#define kLodingHeight 5/2.0f
+
+#define kRefreshArrawImageName @"RefreshArraw"
+
+
 
 @interface ShapeCell : NSObject
 @property (strong, nonatomic) CAShapeLayer *layer;
@@ -26,8 +31,13 @@
 @interface GRefreshControl()
 @property (strong, nonatomic) UIScrollView *superScrollView;
 @property (strong, nonatomic) UIView *loadingView;
-@property (assign, nonatomic) BOOL isLoading;
+@property (nonatomic, strong) UIImageView *arrawImageView;
 @property (strong, nonatomic) NSMutableArray *cellArray;
+
+@property (strong, nonatomic) NSArray *originalColors;
+@property (strong, nonatomic) NSArray *animationColors;
+
+@property (assign, nonatomic) BOOL isLoading;
 @property (assign, nonatomic) CGFloat superScroullViewInsetTop;
 
 @end
@@ -41,9 +51,6 @@
         self.clipsToBounds = YES;
         self.backgroundColor = [UIColor grayColor];
         self.frame = CGRectMake(0, -kRefreshControlHeight, 320, kRefreshControlHeight);
-
-        self.cellArray = [NSMutableArray array];
-        
         [self setupLoadingView];
     }
     return self;
@@ -68,41 +75,24 @@
 
 - (void)setupLoadingView
 {
-    self.loadingView = [[UIView alloc]init];
     [self addSubview:self.loadingView];
-    
-    self.loadingView.frame = CGRectMake(0, -kRefreshControlHeight, self.frame.size.width, kRefreshControlHeight * 2);
-    self.loadingView.backgroundColor = [UIColor clearColor];
-    
-    
-    NSArray *originalColors = @[[UIColor colorWithHexString:@"#e6aa33"],
-                                [UIColor colorWithHexString:@"#e5e633"],
-                                [UIColor colorWithHexString:@"#8ae633"],
-                                [UIColor colorWithHexString:@"#5cad33"],
-                                [UIColor colorWithHexString:@"#337ce6"],
-                                [UIColor colorWithHexString:@"#6e33e6"],
-                                [UIColor colorWithHexString:@"#8c33e6"],
-                                [UIColor colorWithHexString:@"#c933e6"],
-                                [UIColor colorWithHexString:@"#e633c7"]];
-    
-    
     //cell offset
     NSArray *offsetYArr = @[@(-300),@(-220),@(-140),@(-100),@(0),@(-100),@(-140),@(-220),@(-300)];
     
     for (int i = 0; i< kCellNum; i++) {
-        
         CAShapeLayer *shape = [CAShapeLayer layer];
         [self.loadingView.layer addSublayer:shape];
         
         ShapeCell *data = [[ShapeCell alloc]init];
-
-        NSNumber *height = offsetYArr[i];
-        
-        data.frame = CGRectMake(kCellWidth*i,height.floatValue, kCellWidth, self.loadingView.frame.size.height);
-        
         data.layer = shape;
+        
+        NSNumber *height = offsetYArr[i];
+        data.frame = CGRectMake(kCellWidth*i,height.floatValue,
+                                kCellWidth,
+                                self.loadingView.frame.size.height);
+        
         //填充色
-        shape.fillColor = ((UIColor *)originalColors[i]).CGColor;
+        shape.fillColor = ((UIColor *)self.originalColors[i]).CGColor;
         //线头
         shape.lineCap = kCALineCapRound;
         shape.lineWidth = 0;
@@ -110,11 +100,10 @@
         shape.path = [UIBezierPath bezierPathWithRect:data.frame].CGPath;
         [self.cellArray addObject:data];
     }
-    
     [self.loadingView.layer addAnimation:self.pullDown forKey:@"move"];
     self.loadingView.layer.speed = 0;
+    [self addSubview:self.arrawImageView];
 }
-
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
 {
@@ -123,7 +112,7 @@
     }
 }
 
-#pragma mark - pull down
+#pragma mark - 下拉监听
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
@@ -133,8 +122,18 @@
         CGFloat fractionDragged = -offset/kStartLoadingThreshold;
         self.loadingView.layer.timeOffset = MIN(1.0, fractionDragged);
         
-        if (fractionDragged >= 1.0 && !scrollView.dragging) {
-            [self beginRefreshing];
+        if (fractionDragged >= 1.0) {
+            [UIView animateWithDuration:0.2 animations:^{
+                self.arrawImageView.transform = CGAffineTransformMakeRotation(M_PI);
+            }];
+            
+            if (!scrollView.dragging) {
+                [self beginRefreshing];
+            }
+        } else {
+            [UIView animateWithDuration:0.2 animations:^{
+                self.arrawImageView.transform = CGAffineTransformMakeRotation(0);
+            }];
         }
     }
 }
@@ -163,9 +162,16 @@
     if ([self.delegate respondsToSelector:@selector(refreshControlDidBeginRefreshing:)]) {
         [self.delegate refreshControlDidBeginRefreshing:self];
     }
+    
+    //模拟结束
+    double delayInSeconds = 2.0;
+    dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC));
+    dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
+        [self endRefreshing];
+    });
 }
 
-
+#pragma mark - 结束加载数据
 - (void)endRefreshing
 {
     if ([self.delegate respondsToSelector:@selector(refreshControlWillEndRefreshing:)]) {
@@ -194,6 +200,25 @@
     }
 }
 
+#pragma mark - view 初始化
+
+- (UIImageView *)arrawImageView
+{
+    if (!_arrawImageView) {
+        _arrawImageView = [[UIImageView alloc]initWithImage:[UIImage imageNamed:kRefreshArrawImageName]];
+        _arrawImageView.frame = CGRectMake(0.5*(self.frame.size.width-_arrawImageView.frame.size.width), self.frame.size.height-17.0-_arrawImageView.frame.size.height, _arrawImageView.frame.size.width, _arrawImageView.frame.size.height);
+    }
+    return _arrawImageView;
+}
+
+- (UIView *)loadingView
+{
+    if (!_loadingView) {
+        _loadingView = [[UIView alloc]initWithFrame:CGRectMake(0, -kRefreshControlHeight, self.frame.size.width, kRefreshControlHeight * 2)];
+        _loadingView.backgroundColor = [UIColor clearColor];
+    }
+    return _loadingView;
+}
 
 - (UIScrollView *)superScrollView
 {
@@ -205,7 +230,15 @@
     return _superScrollView;
 }
 
+- (NSMutableArray *)cellArray
+{
+    if (!_cellArray) {
+        _cellArray = [NSMutableArray array];
+    }
+    return _cellArray;
+}
 
+#pragma mark - 动画
 - (CAAnimation *)pullDown
 {
     CABasicAnimation * pullDown = [CABasicAnimation animationWithKeyPath:@"position.y"];
@@ -221,7 +254,7 @@
     CABasicAnimation * pullDown = [CABasicAnimation animationWithKeyPath:@"position.y"];
     pullDown.fromValue = @(kRefreshControlHeight);
     pullDown.toValue = @(kRefreshControlHeight);
-
+    
     CAKeyframeAnimation *colorChange = [CAKeyframeAnimation animationWithKeyPath:@"fillColor"];
     colorChange.values = [self colorWithIndex:index];
     
@@ -233,13 +266,6 @@
     
     return group;
 }
-
-
-- (CAAnimation *)finish
-{
-    return nil;
-}
-
 
 - (NSArray *)colorWithIndex:(NSUInteger)index
 {
@@ -255,16 +281,35 @@
 
 - (NSArray *)animationColors
 {
-    return @[(id)[UIColor colorWithHexString:@"#e8bf6c"].CGColor,
-             (id)[UIColor colorWithHexString:@"#e7e96c"].CGColor,
-             (id)[UIColor colorWithHexString:@"#a8e96c"].CGColor,
-             (id)[UIColor colorWithHexString:@"#88c16c"].CGColor,
-             (id)[UIColor colorWithHexString:@"#6b9fe9"].CGColor,
-             (id)[UIColor colorWithHexString:@"#946ce9"].CGColor,
-             (id)[UIColor colorWithHexString:@"#a96ce9"].CGColor,
-             (id)[UIColor colorWithHexString:@"#d46ce9"].CGColor,
-             (id)[UIColor colorWithHexString:@"#e86cd3"].CGColor];
+    if (!_animationColors) {
+        _animationColors = @[
+                             (id)[UIColor colorWithHexString:@"#e8bf6c"].CGColor,
+                             (id)[UIColor colorWithHexString:@"#e7e96c"].CGColor,
+                             (id)[UIColor colorWithHexString:@"#a8e96c"].CGColor,
+                             (id)[UIColor colorWithHexString:@"#88c16c"].CGColor,
+                             (id)[UIColor colorWithHexString:@"#6b9fe9"].CGColor,
+                             (id)[UIColor colorWithHexString:@"#946ce9"].CGColor,
+                             (id)[UIColor colorWithHexString:@"#a96ce9"].CGColor,
+                             (id)[UIColor colorWithHexString:@"#d46ce9"].CGColor,
+                             (id)[UIColor colorWithHexString:@"#e86cd3"].CGColor];
+    }
+    return _animationColors;
 }
 
+- (NSArray *)originalColors
+{
+    if (!_originalColors) {
+        _originalColors = @[[UIColor colorWithHexString:@"#e6aa33"],
+                            [UIColor colorWithHexString:@"#e5e633"],
+                            [UIColor colorWithHexString:@"#8ae633"],
+                            [UIColor colorWithHexString:@"#5cad33"],
+                            [UIColor colorWithHexString:@"#337ce6"],
+                            [UIColor colorWithHexString:@"#6e33e6"],
+                            [UIColor colorWithHexString:@"#8c33e6"],
+                            [UIColor colorWithHexString:@"#c933e6"],
+                            [UIColor colorWithHexString:@"#e633c7"]];
+    }
+    return _originalColors;
+}
 
 @end
