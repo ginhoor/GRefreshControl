@@ -87,7 +87,7 @@
     
     
     //cell offset
-    NSArray *offsetYArr = @[@(-300),@(-220),@(-120),@(-70),@(0),@(-70),@(-120),@(-220),@(-300)];
+    NSArray *offsetYArr = @[@(-300),@(-220),@(-140),@(-100),@(0),@(-100),@(-140),@(-220),@(-300)];
     
     for (int i = 0; i< kCellNum; i++) {
         
@@ -212,7 +212,7 @@
     pullDown.toValue = @(kRefreshControlHeight);
     pullDown.speed = 1;
     pullDown.duration = 1;
-
+    
     return pullDown;
 }
 
@@ -243,7 +243,7 @@
 
 - (NSArray *)colorWithIndex:(NSUInteger)index
 {
-    NSArray *colors = [self colors];
+    NSArray *colors = [self animationColors];
     
     NSMutableArray *array = [NSMutableArray arrayWithCapacity:colors.count];
     
@@ -253,7 +253,7 @@
     return array;
 }
 
-- (NSArray *)colors
+- (NSArray *)animationColors
 {
     return @[(id)[UIColor colorWithHexString:@"#e8bf6c"].CGColor,
              (id)[UIColor colorWithHexString:@"#e7e96c"].CGColor,
