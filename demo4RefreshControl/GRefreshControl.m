@@ -151,6 +151,8 @@
     
     self.isLoading = YES;
     //恢复动画自动运行
+    self.arrawImageView.hidden = YES;
+    self.superScrollView.scrollEnabled = NO;
     self.loadingView.layer.speed = 1.0f;
     
     [UIView animateWithDuration:0.3 animations:^{
@@ -166,7 +168,6 @@
     if ([self.delegate respondsToSelector:@selector(refreshControlDidBeginRefreshing:)]) {
         [self.delegate refreshControlDidBeginRefreshing:self];
     }
-    
     //这里模拟结束加载
     double delayInSeconds = 2.0;
     dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC));
@@ -193,6 +194,8 @@
             [data.layer removeAnimationForKey:@"loading"];
         }];
         
+        self.arrawImageView.hidden = NO;
+        self.superScrollView.scrollEnabled = YES;
         [self.loadingView.layer removeAnimationForKey:@"move"];
         [self.loadingView.layer addAnimation:self.pullDown forKey:@"move"];
         self.loadingView.layer.speed = 0;
