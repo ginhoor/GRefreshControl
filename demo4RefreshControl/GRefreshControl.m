@@ -9,7 +9,7 @@
 #import "GRefreshControl.h"
 #import "UIColor+Hex.h"
 
-#define kRefreshControlHeight 300
+#define kRefreshControlHeight 260
 #define kStartLoadingThreshold 80
 #define kLodingHeight 5/2.0f
 
@@ -49,7 +49,7 @@
     self = [super initWithFrame:frame];
     if (self) {
         self.clipsToBounds = YES;
-        self.backgroundColor = [UIColor grayColor];
+        self.backgroundColor = [UIColor colorWithHexString:@"#1b2228"];
         self.frame = CGRectMake(0, -kRefreshControlHeight, 320, kRefreshControlHeight);
         [self setupLoadingView];
     }
@@ -77,7 +77,11 @@
 {
     [self addSubview:self.loadingView];
     //cell offset
-    NSArray *offsetYArr = @[@(-300),@(-220),@(-140),@(-100),@(0),@(-100),@(-140),@(-220),@(-300)];
+    NSArray *offsetYArr = @[@(-kRefreshControlHeight+30),@(-kRefreshControlHeight+80),
+                            @(-kRefreshControlHeight+122),@(-kRefreshControlHeight+150),
+                            @(0),
+                            @(-kRefreshControlHeight+137),@(-kRefreshControlHeight+102),
+                            @(-kRefreshControlHeight+57),@(-kRefreshControlHeight)];
     
     for (int i = 0; i< kCellNum; i++) {
         CAShapeLayer *shape = [CAShapeLayer layer];
@@ -90,7 +94,6 @@
         data.frame = CGRectMake(kCellWidth*i,height.floatValue,
                                 kCellWidth,
                                 self.loadingView.frame.size.height);
-        
         //填充色
         shape.fillColor = ((UIColor *)self.originalColors[i]).CGColor;
         //线头
@@ -122,17 +125,17 @@
         CGFloat fractionDragged = -offset/kStartLoadingThreshold;
         self.loadingView.layer.timeOffset = MIN(1.0, fractionDragged);
         
-        if (fractionDragged >= 1.0) {
+        
+        if (fractionDragged >= 1.0) {   //达到阀值
             [UIView animateWithDuration:0.2 animations:^{
-                self.arrawImageView.transform = CGAffineTransformMakeRotation(M_PI);
+                self.arrawImageView.transform = CGAffineTransformMakeRotation((179.9*M_PI)/180);
             }];
-            
             if (!scrollView.dragging) {
                 [self beginRefreshing];
             }
-        } else {
+        } else {    //未达到阀值
             [UIView animateWithDuration:0.2 animations:^{
-                self.arrawImageView.transform = CGAffineTransformMakeRotation(0);
+                self.arrawImageView.transform = CGAffineTransformIdentity;
             }];
         }
     }
@@ -147,6 +150,7 @@
     }
     
     self.isLoading = YES;
+    //恢复动画自动运行
     self.loadingView.layer.speed = 1.0f;
     
     [UIView animateWithDuration:0.3 animations:^{
@@ -163,12 +167,14 @@
         [self.delegate refreshControlDidBeginRefreshing:self];
     }
     
-    //模拟结束
+    //这里模拟结束加载
     double delayInSeconds = 2.0;
     dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC));
     dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
         [self endRefreshing];
     });
+    
+    
 }
 
 #pragma mark - 结束加载数据
@@ -184,10 +190,10 @@
         [self.cellArray enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
             ShapeCell *data = obj;
             
-            [data.layer removeAllAnimations];
+            [data.layer removeAnimationForKey:@"loading"];
         }];
         
-        [self.loadingView.layer removeAllAnimations];
+        [self.loadingView.layer removeAnimationForKey:@"move"];
         [self.loadingView.layer addAnimation:self.pullDown forKey:@"move"];
         self.loadingView.layer.speed = 0;
         self.loadingView.layer.timeOffset = 0;
@@ -206,7 +212,7 @@
 {
     if (!_arrawImageView) {
         _arrawImageView = [[UIImageView alloc]initWithImage:[UIImage imageNamed:kRefreshArrawImageName]];
-        _arrawImageView.frame = CGRectMake(0.5*(self.frame.size.width-_arrawImageView.frame.size.width), self.frame.size.height-17.0-_arrawImageView.frame.size.height, _arrawImageView.frame.size.width, _arrawImageView.frame.size.height);
+        _arrawImageView.layer.anchorPoint = CGPointMake(4.0f/_arrawImageView.image.size.width, 13.0f/_arrawImageView.image.size.height);        _arrawImageView.frame = CGRectMake(0.5*(self.frame.size.width-_arrawImageView.frame.size.width), self.frame.size.height-17.0-_arrawImageView.frame.size.height, _arrawImageView.frame.size.width, _arrawImageView.frame.size.height);
     }
     return _arrawImageView;
 }
@@ -239,19 +245,24 @@
 }
 
 #pragma mark - 动画
+
+//下拉动画
 - (CAAnimation *)pullDown
 {
-    CABasicAnimation * pullDown = [CABasicAnimation animationWithKeyPath:@"position.y"];
+    CABasicAnimation *pullDown = [CABasicAnimation animationWithKeyPath:@"position.y"];
     pullDown.toValue = @(kRefreshControlHeight);
     pullDown.speed = 1;
     pullDown.duration = 1;
+    pullDown.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+    pullDown.fillMode = kCAFillModeForwards;
     
     return pullDown;
 }
 
+//读取中动画
 - (CAAnimationGroup *)loadingWithIndex:(NSUInteger)index
 {
-    CABasicAnimation * pullDown = [CABasicAnimation animationWithKeyPath:@"position.y"];
+    CABasicAnimation *pullDown = [CABasicAnimation animationWithKeyPath:@"position.y"];
     pullDown.fromValue = @(kRefreshControlHeight);
     pullDown.toValue = @(kRefreshControlHeight);
     
@@ -261,16 +272,15 @@
     CAAnimationGroup *group = [[CAAnimationGroup alloc]init];
     group.duration = 1;
     group.speed = 1;
-    group.repeatDuration = 1e100f;
+    //无限循环
+    group.repeatDuration = MAXFLOAT;
     group.animations = @[pullDown,colorChange];
-    
     return group;
 }
 
 - (NSArray *)colorWithIndex:(NSUInteger)index
 {
     NSArray *colors = [self animationColors];
-    
     NSMutableArray *array = [NSMutableArray arrayWithCapacity:colors.count];
     
     for (int i = 0; i<colors.count; i++) {
