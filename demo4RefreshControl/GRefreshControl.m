@@ -7,7 +7,7 @@
 //
 
 #import "GRefreshControl.h"
-#import "UIColor+Hex.h"
+//#import "UIColor+Hex.h"
 
 #define kRefreshControlHeight 260
 #define kStartLoadingThreshold 80
@@ -19,7 +19,6 @@
 #define kRefreshArrawImageName @"RefreshArraw"
 
 
-
 @interface ShapeCell : NSObject
 @property (strong, nonatomic) CAShapeLayer *layer;
 @property (assign, nonatomic) CGRect frame;
@@ -27,6 +26,59 @@
 
 @implementation ShapeCell
 @end
+
+
+@interface UIColor (Hex)
+@end
+
+@implementation UIColor (Hex)
++ (UIColor *)colorWithHexString:(id)hexString
+{
+    if (![hexString isKindOfClass:[NSString class]] || [hexString length] == 0) {
+        return [UIColor colorWithRed:0.0f green:0.0f blue:0.0f alpha:1.0f];
+    }
+    
+    const char *s = [hexString cStringUsingEncoding:NSASCIIStringEncoding];
+    if (*s == '#') {
+        ++s;
+    }
+    unsigned long long value = strtoll(s, nil, 16);
+    int r, g, b, a;
+    switch (strlen(s)) {
+        case 2:
+            // xx
+            r = g = b = (int)value;
+            a = 255;
+            break;
+        case 3:
+            // RGB
+            r = ((value & 0xf00) >> 8);
+            g = ((value & 0x0f0) >> 4);
+            b = ((value & 0x00f) >> 0);
+            r = r * 16 + r;
+            g = g * 16 + g;
+            b = b * 16 + b;
+            a = 255;
+            break;
+        case 6:
+            // RRGGBB
+            r = (value & 0xff0000) >> 16;
+            g = (value & 0x00ff00) >>  8;
+            b = (value & 0x0000ff) >>  0;
+            a = 255;
+            break;
+        default:
+            // RRGGBBAA
+            r = (value & 0xff000000) >> 24;
+            g = (value & 0x00ff0000) >> 16;
+            b = (value & 0x0000ff00) >>  8;
+            a = (value & 0x000000ff) >>  0;
+            break;
+    }
+    return [UIColor colorWithRed:r/255.0f green:g/255.0f blue:b/255.0f alpha:a/255.0f];
+}
+@end
+
 
 @interface GRefreshControl()
 @property (strong, nonatomic) UIScrollView *superScrollView;
@@ -43,6 +95,11 @@
 @end
 
 @implementation GRefreshControl
+
+- (void)dealloc
+{
+    [self.superScrollView removeObserver:self forKeyPath:@"contentOffset"];
+}
 
 - (id)initWithFrame:(CGRect)frame
 {
@@ -125,6 +182,10 @@
         CGFloat fractionDragged = -offset/kStartLoadingThreshold;
         self.loadingView.layer.timeOffset = MIN(1.0, fractionDragged);
         
+        //修复可能出现的 tabBar 切换后 动画消失问题
+        if (!self.loadingView.layer.animationKeys) {
+            [self.loadingView.layer addAnimation:self.pullDown forKey:@"move"];
+        }
         
         if (fractionDragged >= 1.0) {   //达到阀值
             [UIView animateWithDuration:0.2 animations:^{
@@ -190,14 +251,12 @@
     }completion:^(BOOL finished) {
         [self.cellArray enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
             ShapeCell *data = obj;
-            
             [data.layer removeAnimationForKey:@"loading"];
         }];
         
         self.arrawImageView.hidden = NO;
         self.superScrollView.scrollEnabled = YES;
         [self.loadingView.layer removeAnimationForKey:@"move"];
-        [self.loadingView.layer addAnimation:self.pullDown forKey:@"move"];
         self.loadingView.layer.speed = 0;
         self.loadingView.layer.timeOffset = 0;
         
@@ -326,3 +385,6 @@
 }
 
 @end
+
+
+
